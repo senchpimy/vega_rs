@@ -1,0 +1,557 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Vega-Lite: Rust vs Vega vs Todo Rust</title>
+<style>
+  :root {
+    --bg: #0f1117;
+    --panel: #171a23;
+    --panel-2: #1e2230;
+    --border: #2a3040;
+    --text: #dfe3ee;
+    --muted: #8b93a7;
+    --accent: #7aa2f7;
+    --green: #9ece6a;
+    --red: #f7768e;
+    --yellow: #e0af68;
+  }
+  * { box-sizing: border-box; }
+  html, body { height: 100%; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--text);
+    font: 13px/1.45 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    display: flex;
+    flex-direction: column;
+  }
+  header {
+    display: flex;
+    gap: 10px;
+    align-items: center;
+    padding: 9px 14px;
+    background: var(--panel);
+    border-bottom: 1px solid var(--border);
+    flex-wrap: wrap;
+  }
+  header h1 {
+    font-size: 14px;
+    margin: 0 10px 0 0;
+    font-weight: 600;
+    letter-spacing: .02em;
+    white-space: nowrap;
+  }
+  header h1 span { color: var(--accent); }
+  input[type="search"], select {
+    background: var(--panel-2);
+    color: var(--text);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 5px 9px;
+    font: inherit;
+  }
+  input[type="search"] { width: 210px; }
+  select { min-width: 190px; max-width: 280px; }
+  button {
+    background: var(--panel-2);
+    color: var(--text);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 5px 11px;
+    font: inherit;
+    cursor: pointer;
+    white-space: nowrap;
+  }
+  button:hover { border-color: var(--accent); }
+  button.primary { background: #24304a; border-color: #36507a; }
+  #status { color: var(--muted); margin-left: auto; white-space: nowrap; }
+  main {
+    flex: 1;
+    display: grid;
+    grid-template-columns: minmax(250px, .9fr) repeat(3, minmax(275px, 1fr));
+    min-height: 0;
+  }
+  section { display: flex; flex-direction: column; min-width: 0; min-height: 0; }
+  section + section { border-left: 1px solid var(--border); }
+  .pane-head {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 7px 11px;
+    background: var(--panel);
+    border-bottom: 1px solid var(--border);
+    min-height: 38px;
+    white-space: nowrap;
+  }
+  .pane-head strong { font-weight: 600; }
+  .pane-head .label { color: var(--muted); overflow: hidden; text-overflow: ellipsis; }
+  .pane-head .stats { margin-left: auto; display: flex; gap: 6px; align-items: center; }
+  .pill {
+    border: 1px solid var(--border);
+    border-radius: 999px;
+    padding: 1px 8px;
+    color: var(--muted);
+    font-size: 11px;
+  }
+  .pill.ok { color: var(--green); border-color: rgba(158, 206, 106, .4); }
+  .pill.bad { color: var(--red); border-color: rgba(247, 118, 142, .4); }
+  .pill.warn { color: var(--yellow); border-color: rgba(224, 175, 104, .4); }
+  textarea {
+    margin: 0;
+    border: 0;
+    width: 100%;
+    height: 100%;
+    padding: 12px 14px;
+    background: transparent;
+    color: var(--text);
+    font: inherit;
+    resize: none;
+    outline: none;
+    overflow: auto;
+    tab-size: 2;
+  }
+  .chart-wrap { flex: 1; min-height: 0; overflow: auto; background: #fff; position: relative; }
+  .chart { padding: 10px; }
+  .chart .vega-embed { width: 100%; }
+  .chart .vega-embed svg, .chart .vega-embed canvas { max-width: 100%; height: auto; }
+  .error {
+    padding: 12px 14px;
+    color: var(--red);
+    white-space: pre-wrap;
+    background: #1a1418;
+    font-size: 12px;
+  }
+  details {
+    border-top: 1px solid var(--border);
+    background: var(--panel);
+    flex: 0 0 auto;
+    max-height: 38%;
+    overflow: auto;
+  }
+  details[open] { display: flex; flex-direction: column; }
+  summary {
+    cursor: pointer;
+    padding: 6px 11px;
+    color: var(--muted);
+    user-select: none;
+    position: sticky;
+    top: 0;
+    background: var(--panel);
+  }
+  details pre {
+    margin: 0;
+    padding: 8px 12px 12px;
+    white-space: pre;
+    overflow: auto;
+    font: inherit;
+    font-size: 12px;
+  }
+  @media (max-width: 1280px) {
+    main { grid-template-columns: 1fr 1fr; grid-template-rows: 1.1fr 1fr 1fr; }
+    section + section { border-left: 0; border-top: 1px solid var(--border); }
+    section:nth-child(even) { border-left: 1px solid var(--border); }
+    section:nth-child(-n+2) { border-top: 0; }
+  }
+  @media (max-width: 760px) {
+    main { grid-template-columns: 1fr; grid-template-rows: none; }
+    section { min-height: 55vh; }
+    section + section { border-left: 0; border-top: 1px solid var(--border); }
+  }
+</style>
+</head>
+<body>
+<header>
+  <h1>Vega-Lite <span>→</span> Rust <span>vs</span> Vega <span>vs</span> Todo Rust</h1>
+  <input id="search" type="search" placeholder="Buscar ejemplo…" autocomplete="off">
+  <select id="examples" aria-label="Ejemplos"></select>
+  <button id="next" class="primary" title="Cargar el siguiente ejemplo (→)">Siguiente →</button>
+  <span id="status">cargando…</span>
+</header>
+
+<main>
+  <section>
+    <div class="pane-head">
+      <strong>Vega-Lite</strong>
+      <span class="label" id="spec-name">spec de entrada</span>
+      <span class="stats"><span class="pill" id="input-state">editando</span></span>
+    </div>
+    <textarea id="source" spellcheck="false" placeholder='{"data":{"values":[{"a":"A","b":28}]},"mark":"bar","encoding":{"x":{"field":"a","type":"nominal"},"y":{"field":"b","type":"quantitative"}}}'></textarea>
+  </section>
+
+  <section>
+    <div class="pane-head">
+      <strong>Rust</strong>
+      <span class="label">esta librería</span>
+      <span class="stats">
+        <span class="pill" id="rust-match"></span>
+        <span class="pill" id="rust-time">—</span>
+        <span class="pill" id="rust-svg">SVG —</span>
+      </span>
+    </div>
+    <div class="chart-wrap"><div class="chart" id="rust-chart"></div><div class="error" id="rust-error" style="display:none"></div></div>
+    <details>
+      <summary>Ver Vega JSON (Rust)</summary>
+      <pre id="rust-json">—</pre>
+    </details>
+  </section>
+
+  <section>
+    <div class="pane-head">
+      <strong>Vega</strong>
+      <span class="label">TypeScript oficial</span>
+      <span class="stats">
+        <span class="pill" id="ts-match"></span>
+        <span class="pill" id="ts-time">—</span>
+        <span class="pill" id="ts-svg">SVG —</span>
+      </span>
+    </div>
+    <div class="chart-wrap"><div class="chart" id="ts-chart"></div><div class="error" id="ts-error" style="display:none"></div></div>
+    <details>
+      <summary>Ver Vega JSON (TS)</summary>
+      <pre id="ts-json">—</pre>
+    </details>
+  </section>
+
+  <section>
+    <div class="pane-head">
+      <strong>Todo Rust</strong>
+      <span class="label">compilador Rust + SVG Rust</span>
+      <span class="stats">
+        <span class="pill" id="rustsvg-mode"></span>
+        <span class="pill" id="rustsvg-match"></span>
+        <span class="pill" id="rustsvg-time">—</span>
+      </span>
+    </div>
+    <div class="chart-wrap"><div class="chart" id="rustsvg-chart"></div><div class="error" id="rustsvg-error" style="display:none"></div></div>
+    <details>
+      <summary>Ver SVG (Rust)</summary>
+      <pre id="rustsvg-svg">—</pre>
+    </details>
+  </section>
+</main>
+
+<script src="https://cdn.jsdelivr.net/npm/vega@6"></script>
+<script src="https://cdn.jsdelivr.net/npm/vega-embed@7"></script>
+<script>
+(() => {
+  const $ = (id) => document.getElementById(id);
+  const source = $('source');
+  const statusEl = $('status');
+  const selectEl = $('examples');
+  const searchEl = $('search');
+  const nameEl = $('spec-name');
+  const inputState = $('input-state');
+
+  const panels = {
+    rust: {
+      chart: $('rust-chart'), error: $('rust-error'), json: $('rust-json'),
+      time: $('rust-time'), match: $('rust-match'), svg_time: $('rust-svg'),
+      handle: null, spec: null,
+    },
+    ts: {
+      chart: $('ts-chart'), error: $('ts-error'), json: $('ts-json'),
+      time: $('ts-time'), match: $('ts-match'), svg_time: $('ts-svg'),
+      handle: null, spec: null,
+    },
+    rustsvg: {
+      chart: $('rustsvg-chart'), error: $('rustsvg-error'), json: $('rustsvg-svg'),
+      svg: $('rustsvg-svg'), time: $('rustsvg-time'), match: $('rustsvg-match'),
+      mode: $('rustsvg-mode'), handle: null, spec: null,
+    },
+  };
+
+  let examples = [];
+  let expected = null;
+  let token = 0;
+  let debounceTimer = null;
+
+  function setStatus(text, ok) {
+    statusEl.textContent = text;
+    statusEl.style.color = ok === true ? 'var(--green)' : ok === false ? 'var(--red)' : 'var(--muted)';
+  }
+
+  function fmtMs(ms) {
+    if (ms == null || Number.isNaN(ms)) return '—';
+    return (ms < 1 ? ms.toFixed(3) : ms.toFixed(2)) + ' ms';
+  }
+
+  function deepEqual(a, b) {
+    if (a === b) return true;
+    if (typeof a !== typeof b || a === null || b === null) return false;
+    if (Array.isArray(a) !== Array.isArray(b)) return false;
+    if (Array.isArray(a)) {
+      return a.length === b.length && a.every((v, i) => deepEqual(v, b[i]));
+    }
+    if (typeof a === 'object') {
+      const ka = Object.keys(a).sort();
+      const kb = Object.keys(b).sort();
+      if (ka.length !== kb.length || ka.some((k, i) => k !== kb[i])) return false;
+      return ka.every((k) => deepEqual(a[k], b[k]));
+    }
+    return false;
+  }
+
+  async function fetchJSON(url, opts) {
+    const res = await fetch(url, opts);
+    const data = await res.json().catch(() => ({}));
+    return { ok: res.ok, status: res.status, data };
+  }
+
+  async function renderPanel(key, spec) {
+    const p = panels[key];
+    p.spec = spec;
+    if (p.handle && p.handle.finalize) {
+      try { p.handle.finalize(); } catch (_) {}
+      p.handle = null;
+    }
+    p.chart.innerHTML = '';
+    p.error.style.display = 'none';
+
+    if (!spec) { p.chart.innerHTML = ''; return; }
+
+    if (!window.vegaEmbed) {
+      p.error.textContent = 'vega-embed no disponible (sin conexión).';
+      p.error.style.display = '';
+      return;
+    }
+    try {
+      p.handle = await vegaEmbed(p.chart, spec, { mode: 'vega', actions: false, renderer: 'svg' });
+      // Measure the Vega -> SVG serialization separately from data loading and
+      // the initial render (this is the `view.toSVG()` step).
+      if (p.svg_time && p.handle && p.handle.view && p.handle.view.toSVG) {
+        try {
+          const t0 = performance.now();
+          await p.handle.view.toSVG();
+          p.svg_time.textContent = 'SVG ' + fmtMs(performance.now() - t0);
+          p.svg_time.className = 'pill';
+          p.svg_time.title = 'tiempo de Vega a SVG (view.toSVG)';
+        } catch (_) {
+          p.svg_time.textContent = 'SVG —';
+        }
+      } else if (p.svg_time) {
+        p.svg_time.textContent = 'SVG —';
+      }
+    } catch (err) {
+      p.chart.innerHTML = '';
+      p.error.textContent = 'Error al renderizar: ' + (err && err.message ? err.message : err);
+      p.error.style.display = '';
+    }
+  }
+
+  function clearPanel(key, message) {
+    const p = panels[key];
+    if (p.handle && p.handle.finalize) { try { p.handle.finalize(); } catch (_) {} p.handle = null; }
+    p.spec = null;
+    p.chart.innerHTML = '';
+    if (p.json) p.json.textContent = '—';
+    p.time.textContent = '—';
+    if (p.svg_time) p.svg_time.textContent = 'SVG —';
+    p.match.textContent = '';
+    p.match.className = 'pill';
+    if (p.mode) { p.mode.textContent = ''; p.mode.className = 'pill'; }
+    if (message) {
+      p.error.textContent = message;
+      p.error.style.display = '';
+    } else {
+      p.error.style.display = 'none';
+    }
+  }
+
+  function updateMatch(key) {
+    const p = panels[key];
+    if (!expected || !p.spec) {
+      p.match.textContent = '';
+      p.match.className = 'pill';
+      return;
+    }
+    const same = deepEqual(expected, p.spec);
+    p.match.textContent = same ? '= upstream ✓' : '≠ upstream';
+    p.match.className = 'pill ' + (same ? 'ok' : 'bad');
+  }
+
+  async function loadExamples(filter = '') {
+    const { data } = await fetchJSON('/api/examples?q=' + encodeURIComponent(filter));
+    examples = data.examples || [];
+    selectEl.innerHTML = '';
+    for (const name of examples) {
+      const opt = document.createElement('option');
+      opt.value = name;
+      opt.textContent = name;
+      selectEl.appendChild(opt);
+    }
+    if (examples.length) selectEl.value = examples[0];
+  }
+
+  async function loadExample(name) {
+    if (!name) return;
+    setStatus('cargando ejemplo…');
+    const { ok, data } = await fetchJSON('/api/example?name=' + encodeURIComponent(name));
+    if (!ok) { setStatus(data.error || 'no encontrado', false); return; }
+    expected = data.compiled || null;
+    source.value = JSON.stringify(data.spec, null, 2);
+    nameEl.textContent = name;
+    inputState.textContent = 'ejemplo';
+    inputState.className = 'pill';
+    run();
+  }
+
+  async function compile() {
+    const myToken = ++token;
+    clearTimeout(debounceTimer);
+
+    let spec;
+    try {
+      spec = JSON.parse(source.value);
+    } catch (err) {
+      inputState.textContent = 'JSON inválido';
+      inputState.className = 'pill bad';
+      setStatus('JSON inválido: ' + err.message, false);
+      clearPanel('rust', 'JSON inválido: ' + err.message);
+      clearPanel('ts', 'JSON inválido: ' + err.message);
+      clearPanel('rustsvg', 'JSON inválido: ' + err.message);
+      return;
+    }
+
+    inputState.textContent = 'compilando…';
+    inputState.className = 'pill warn';
+    setStatus('compilando con Rust, Vega/TS y Todo Rust…');
+
+    const body = JSON.stringify(spec);
+    const opts = { method: 'POST', headers: { 'Content-Type': 'application/json' }, body };
+    const [rustRes, tsRes, rustSvgRes] = await Promise.all([
+      fetchJSON('/api/compile', opts),
+      fetchJSON('/api/compile_ts', opts),
+      fetchJSON('/api/render_svg', opts),
+    ]);
+    if (myToken !== token) return; // a newer keystroke won
+
+    let okCount = 0;
+
+    if (rustRes.ok && rustRes.data.vega) {
+      okCount++;
+      panels.rust.spec = rustRes.data.vega;
+      panels.rust.json.textContent = JSON.stringify(rustRes.data.vega, null, 2);
+      panels.rust.time.textContent = fmtMs(rustRes.data.ms);
+      panels.rust.time.className = 'pill ok';
+      panels.rust.error.style.display = 'none';
+      await renderPanel('rust', rustRes.data.vega);
+      updateMatch('rust');
+    } else {
+      clearPanel('rust');
+      panels.rust.error.textContent = (rustRes.data.error || ('HTTP ' + rustRes.status)) +
+        (rustRes.data.hint ? '\n\n' + rustRes.data.hint : '');
+      panels.rust.error.style.display = '';
+      panels.rust.time.textContent = 'error';
+      panels.rust.time.className = 'pill bad';
+    }
+
+    if (tsRes.ok && tsRes.data.ok !== false && tsRes.data.vega) {
+      okCount++;
+      panels.ts.spec = tsRes.data.vega;
+      panels.ts.json.textContent = JSON.stringify(tsRes.data.vega, null, 2);
+      panels.ts.time.textContent = fmtMs(tsRes.data.ms);
+      panels.ts.time.className = 'pill ok';
+      panels.ts.error.style.display = 'none';
+      await renderPanel('ts', tsRes.data.vega);
+      updateMatch('ts');
+    } else {
+      clearPanel('ts');
+      panels.ts.error.textContent = (tsRes.data.error || ('HTTP ' + tsRes.status)) +
+        (tsRes.data.hint ? '\n\n' + tsRes.data.hint : '');
+      panels.ts.error.style.display = '';
+      panels.ts.time.textContent = 'error';
+      panels.ts.time.className = 'pill bad';
+    }
+
+    if (rustSvgRes.ok && rustSvgRes.data.svg) {
+      okCount++;
+      const p = panels.rustsvg;
+      p.spec = rustSvgRes.data.vega || null;
+      p.svg.textContent = rustSvgRes.data.svg;
+      p.time.textContent = fmtMs(rustSvgRes.data.ms);
+      p.time.className = 'pill ok';
+      p.error.style.display = 'none';
+      if (rustSvgRes.data.interactive && window.vegaEmbed) {
+        // A static SVG cannot handle Vega selections/signals. For interactive
+        // specs use the Vega runtime on the Rust-compiled spec so pan/zoom,
+        // brushing and bound inputs actually work.
+        p.mode.textContent = 'interactivo';
+        p.mode.className = 'pill warn';
+        await renderPanel('rustsvg', rustSvgRes.data.vega);
+      } else {
+        if (p.handle && p.handle.finalize) { try { p.handle.finalize(); } catch (_) {} p.handle = null; }
+        p.chart.innerHTML = rustSvgRes.data.svg;
+        p.mode.textContent = 'SVG Rust';
+        p.mode.className = 'pill ok';
+      }
+      updateMatch('rustsvg');
+    } else {
+      clearPanel('rustsvg');
+      panels.rustsvg.error.textContent = (rustSvgRes.data.error || ('HTTP ' + rustSvgRes.status)) +
+        (rustSvgRes.data.hint ? '\n\n' + rustSvgRes.data.hint : '');
+      panels.rustsvg.error.style.display = '';
+      panels.rustsvg.time.textContent = 'error';
+      panels.rustsvg.time.className = 'pill bad';
+    }
+
+    inputState.textContent = okCount === 3 ? 'compilado' : okCount > 0 ? 'parcial' : 'sin salida';
+    inputState.className = 'pill ' + (okCount === 3 ? 'ok' : okCount > 0 ? 'warn' : 'bad');
+    setStatus(
+      `Rust ${panels.rust.time.textContent} · Vega/TS ${panels.ts.time.textContent} · SVG TS ${panels.ts.svg_time.textContent} · Todo Rust ${panels.rustsvg.time.textContent}`,
+      okCount === 3,
+    );
+  }
+
+  function run() {
+    clearTimeout(debounceTimer);
+    debounceTimer = setTimeout(compile, 450);
+  }
+
+  function nextExample() {
+    if (!examples.length) return;
+    const current = selectEl.value;
+    const index = examples.indexOf(current);
+    const next = examples[(index + 1 + examples.length) % examples.length];
+    selectEl.value = next;
+    loadExample(next);
+  }
+
+  selectEl.addEventListener('change', () => loadExample(selectEl.value));
+  $('next').addEventListener('click', nextExample);
+  document.addEventListener('keydown', (e) => {
+    const tag = (e.target && e.target.tagName) || '';
+    if (tag === 'TEXTAREA' || tag === 'INPUT' || tag === 'SELECT') return;
+    if (e.key === 'ArrowRight') { e.preventDefault(); nextExample(); }
+  });
+  source.addEventListener('input', () => {
+    expected = null;
+    nameEl.textContent = 'spec de entrada';
+    inputState.textContent = 'editando…';
+    inputState.className = 'pill warn';
+    run();
+  });
+  source.addEventListener('keydown', (e) => {
+    if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') { e.preventDefault(); compile(); }
+  });
+
+  let searchTimer;
+  searchEl.addEventListener('input', () => {
+    clearTimeout(searchTimer);
+    searchTimer = setTimeout(async () => {
+      const current = selectEl.value;
+      await loadExamples(searchEl.value);
+      if (examples.includes(current)) selectEl.value = current;
+    }, 150);
+  });
+
+  (async () => {
+    await loadExamples();
+    if (examples.length) loadExample(selectEl.value);
+    else setStatus('no hay ejemplos en VEGA_LITE_REPO', false);
+  })();
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,16 @@
+[package]
+name = "vega-svg"
+version = "0.1.0"
+edition = "2021"
+description = "Render Vega specifications to SVG, plus a direct Vega-Lite to SVG path"
+license = "BSD-3-Clause"
+
+[dependencies]
+serde = { version = "1", features = ["derive"] }
+serde_json = { version = "1", features = ["preserve_order"] }
+indexmap = { version = "2", features = ["serde"] }
+vega-lite = { path = ".." }
+
+[dev-dependencies]
+pretty_assertions = "1"
+pprof = { version = "0.15", features = ["flamegraph"] }
