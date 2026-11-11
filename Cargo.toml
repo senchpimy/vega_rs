@@ -10,7 +10,12 @@ serde_json = { version = "1", features = ["preserve_order"] }
 indexmap = { version = "2", features = ["serde"] }
 
 [dev-dependencies]
+criterion = { version = "0.8", default-features = false }
 pretty_assertions = "1"
+
+[[bench]]
+name = "compile"
+harness = false
 
 [workspace]
 members = [".", "vega-svg"]

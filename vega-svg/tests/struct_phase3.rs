@@ -72,8 +72,11 @@ fn custom_symbol_path_is_scaled_by_sqrt_size_over_two() {
     root.items.push(symbol);
 
     let svg = render(&root, None);
-    assert!(svg.contains("d=\"M0,0L1,1\""), "{svg}");
-    assert!(svg.contains("transform=\"translate(0,0) scale(5)\""), "{svg}");
+    // The scale is baked into the path (Vega does the same) instead of using
+    // an SVG `scale()` transform, which would also scale the stroke width.
+    assert!(svg.contains("d=\"M 0 0L 5 5\""), "{svg}");
+    assert!(svg.contains("transform=\"translate(0,0)\""), "{svg}");
+    assert!(!svg.contains("scale(5)"), "{svg}");
 }
 
 #[test]

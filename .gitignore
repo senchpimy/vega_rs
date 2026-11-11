@@ -1,0 +1,19 @@
+# Rust build artifacts
+/target/
+/vega-svg/target/
+
+# Node tooling and upstream datasets
+/node_modules/
+npm-debug.log*
+yarn-error.log*
+
+# Local tooling state / secrets
+githubToken
+.env
+.DS_Store
+
+# Local diagnostic viewer (Python, not part of the workspace)
+/viewer/
+
+# Generated comparison output
+*.flamegraph.svg

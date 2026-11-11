@@ -12,5 +12,10 @@ indexmap = { version = "2", features = ["serde"] }
 vega-lite = { path = ".." }
 
 [dev-dependencies]
+criterion = { version = "0.8", default-features = false }
 pretty_assertions = "1"
 pprof = { version = "0.15", features = ["flamegraph"] }
+
+[[bench]]
+name = "render"
+harness = false

@@ -185,6 +185,165 @@ pub fn custom_symbol_scale(size: f64) -> f64 {
     size.max(0.0).sqrt() / 2.0
 }
 
+/// Scale an SVG path's coordinates by `k`.
+///
+/// Vega bakes this scale into the custom-symbol coordinates. Using an SVG
+/// `scale()` transform instead would also scale the stroke width (turning a
+/// 2px outline into e.g. a 15px blob for large symbols), so the scale has to
+/// be applied to the path data itself.
+pub fn scale_path(d: &str, k: f64) -> String {
+    #[derive(Clone, Copy, PartialEq)]
+    enum Cmd {
+        M,
+        L,
+        H,
+        V,
+        C,
+        S,
+        Q,
+        T,
+        A,
+        Z,
+    }
+
+    fn command(c: char) -> Option<(Cmd, bool)> {
+        let lower = c.to_ascii_lowercase();
+        let cmd = match lower {
+            'm' => Cmd::M,
+            'l' => Cmd::L,
+            'h' => Cmd::H,
+            'v' => Cmd::V,
+            'c' => Cmd::C,
+            's' => Cmd::S,
+            'q' => Cmd::Q,
+            't' => Cmd::T,
+            'a' => Cmd::A,
+            'z' => Cmd::Z,
+            _ => return None,
+        };
+        Some((cmd, c.is_ascii_uppercase()))
+    }
+
+    fn arity(cmd: Cmd) -> usize {
+        match cmd {
+            Cmd::M | Cmd::L | Cmd::T => 2,
+            Cmd::H | Cmd::V => 1,
+            Cmd::C => 6,
+            Cmd::S | Cmd::Q => 4,
+            Cmd::A => 7,
+            Cmd::Z => 0,
+        }
+    }
+
+    let mut out = String::with_capacity(d.len() + 16);
+    let mut nums: Vec<f64> = Vec::new();
+    let mut current: Option<(Cmd, bool)> = None;
+
+    let flush = |cmd: Option<(Cmd, bool)>, nums: &mut Vec<f64>, out: &mut String| {
+        let Some((cmd, absolute)) = cmd else {
+            nums.clear();
+            return;
+        };
+        let n = arity(cmd);
+        if n == 0 {
+            nums.clear();
+            return;
+        }
+        let letter = match cmd {
+            Cmd::M => 'M',
+            Cmd::L => 'L',
+            Cmd::H => 'H',
+            Cmd::V => 'V',
+            Cmd::C => 'C',
+            Cmd::S => 'S',
+            Cmd::Q => 'Q',
+            Cmd::T => 'T',
+            Cmd::A => 'A',
+            Cmd::Z => 'Z',
+        };
+        let letter = if absolute {
+            letter
+        } else {
+            letter.to_ascii_lowercase()
+        };
+        for (chunk_idx, chunk) in nums.chunks(n).enumerate() {
+            if chunk.len() < n {
+                break;
+            }
+            // Additional pairs after `M` are implicit `L` commands.
+            if cmd == Cmd::M && chunk_idx > 0 {
+                out.push(if absolute { 'L' } else { 'l' });
+            } else {
+                out.push(letter);
+            }
+            for (i, v) in chunk.iter().enumerate() {
+                let scaled = if cmd == Cmd::A {
+                    match i {
+                        // rx, ry and the endpoint x/y scale; the x-axis
+                        // rotation and the two arc flags stay untouched.
+                        0 | 1 | 5 | 6 => v * k,
+                        2 => *v,
+                        _ => *v,
+                    }
+                } else {
+                    v * k
+                };
+                out.push(' ');
+                out.push_str(&fmt_num(scaled));
+            }
+        }
+        nums.clear();
+    };
+
+    let mut chars = d.chars().peekable();
+    while let Some(&c) = chars.peek() {
+        if c.is_ascii_alphabetic() {
+            flush(current, &mut nums, &mut out);
+            if let Some(cmd) = command(c) {
+                if matches!(cmd.0, Cmd::Z) {
+                    out.push(if cmd.1 { 'Z' } else { 'z' });
+                    current = None;
+                } else {
+                    current = Some(cmd);
+                }
+            } else {
+                current = None;
+            }
+            chars.next();
+            continue;
+        }
+        if c == '-' || c == '+' || c == '.' || c.is_ascii_digit() {
+            let mut token = String::new();
+            token.push(chars.next().unwrap());
+            while let Some(&next) = chars.peek() {
+                if next.is_ascii_digit()
+                    || next == '.'
+                    || next == 'e'
+                    || next == 'E'
+                    || ((next == '-' || next == '+')
+                        && token
+                            .chars()
+                            .last()
+                            .map(|l| l == 'e' || l == 'E')
+                            .unwrap_or(false))
+                {
+                    token.push(chars.next().unwrap());
+                } else {
+                    break;
+                }
+            }
+            if let Ok(v) = token.parse::<f64>() {
+                nums.push(v);
+            }
+            continue;
+        }
+        // separators (whitespace, commas) and anything else
+        chars.next();
+    }
+    flush(current, &mut nums, &mut out);
+    out
+}
+
 /// Symbol geometry, ported from `vega-scenegraph/src/path/symbols.js`.
 ///
 /// `size` is an area (square pixels) as in Vega: built-in shapes size

@@ -9,7 +9,7 @@ use serde_json::{Map, Value};
 
 use crate::scenegraph::{
     arc_path, area_path, custom_symbol_scale, fmt_num, is_custom_symbol, line_path, rect_path,
-    symbol_path, Item,
+    scale_path, symbol_path, Item,
 };
 use crate::value::json_number;
 
@@ -655,16 +655,21 @@ impl Renderer {
         // Upstream emits symbol geometry at the origin and positions items with
         // `transform="translate(x,y)"` (see `marks/markItemPath.js`). Custom
         // path strings are additionally scaled by `sqrt(size) / 2`.
-        let d = symbol_path(0.0, 0.0, size, shape);
+        // Custom symbol paths are scaled by baking the factor into the path
+        // data (as upstream does), not with an SVG `scale()` transform: a
+        // transform would also multiply the stroke width and make outlines
+        // balloon for large symbols.
+        let d = if custom {
+            scale_path(&symbol_path(0.0, 0.0, size, shape), custom_symbol_scale(size))
+        } else {
+            symbol_path(0.0, 0.0, size, shape)
+        };
 
         let mut attrs = class_attr(item);
         let angle = item.f64("angle").unwrap_or(0.0);
         let mut transform = format!("translate({},{})", fmt_num(x), fmt_num(y));
         if angle != 0.0 {
             transform.push_str(&format!(" rotate({})", fmt_num(angle)));
-        }
-        if custom {
-            transform.push_str(&format!(" scale({})", fmt_num(custom_symbol_scale(size))));
         }
         push_str_attr(&mut attrs, "transform", &transform);
         push_str_attr(&mut attrs, "d", &d);

@@ -1255,6 +1255,7 @@ struct LegendInfo {
     /// Discrete band legend (bin-ordinal scales).
     band_legend: bool,
     /// Legend symbols are line segments (`symbolType: "stroke"`).
+    #[allow(dead_code)]
     stroke_symbol: bool,
     /// Width/height of a single symbol legend entry row.
     entry_width: f64,
@@ -1543,8 +1544,7 @@ fn build_legend_info(spec: &Value, config: &Value, env: &Env) -> Option<LegendIn
             let w = label_x + text_width(&e.label, font_size);
             entry_width = entry_width.max(w);
             entry_widths.push(w);
-            let stroke_extra = if e.stroke.is_null() || stroke_symbol { 0.0 } else { 3.0 };
-            entry_height = entry_height.max(side + 1.0 + stroke_extra);
+            entry_height = entry_height.max(side + 1.0);
         }
         let title_w = title
             .as_ref()
@@ -1579,13 +1579,7 @@ fn build_legend_info(spec: &Value, config: &Value, env: &Env) -> Option<LegendIn
             horizontal && title.is_some() && title_orient == "left";
         let title_width = if title_on_side { title_w + 5.0 } else { 0.0 };
         let rows = entries.len() as f64;
-        let row_gap = if stroke_symbol {
-            2.0
-        } else if entries.iter().any(|e| !e.stroke.is_null()) {
-            4.0
-        } else {
-            2.0
-        };
+        let row_gap = 2.0;
         let (width, height) = if entries.is_empty() {
             (entry_width.max(title_w), title_height)
         } else if horizontal {
@@ -5416,14 +5410,7 @@ fn legend_item(info: &LegendInfo, _env: &Env) -> Item {
             if info.horizontal && !info.size_legend {
                 x_cursor += entry_w + 10.0;
             } else if !info.size_legend {
-                row_y += info.entry_height
-                    + if info.stroke_symbol {
-                        2.0
-                    } else if info.entries.iter().any(|e| !e.stroke.is_null()) {
-                        4.0
-                    } else {
-                        2.0
-                    };
+                row_y += info.entry_height + 2.0;
             }
         }
     }

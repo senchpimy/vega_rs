@@ -75,6 +75,14 @@ node scripts/compare_svg.mjs
 node scripts/compare_svg.mjs --name trellis --limit 5
 ```
 
+## Benchmarks
+
+Rust vs upstream Vega, same 633 examples, warm, excluding JSON parsing.
+
+| Workload | Rust | Upstream Vega | Speedup |
+| --- | --- | --- | --- |
+| Render Vega to SVG | ~5.8 s (9.2 ms/spec) | ~10.5 s (16.5 ms/spec) | 1.8x |
+
 ## Profiling
 
 Two `examples/` harnesses use `pprof` to sample render CPU time:
